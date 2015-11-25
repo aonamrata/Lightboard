@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Light Board Game</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="jquery.min.js"></script>
+        <script src="jquery.cookie.js"></script>
+        <style>
+            td.eachBlock{
+                width: 50px;
+                height: 50px;
+            }
+            button {
+                color: white;
+            }
+            .buttonOff {
+                background-color: green;
+            } 
+            .buttonOn{
+                background-color: red;
+            } 
+            .buttonDisabled{
+                background-color: grey;
+            } 
+        </style>
+
+    </head>
+    <body>
+        <div>Click on the button to get access to change cell scolor.</div>
+
+        <p> 
+            <button name="getToken" id="getToken" isOn="0" class="buttonOff">click here to get Access</button> 
+        </p>
+        <table id="excelDataTable" border="1">
+        </table>
+
+
+
+        <script>
+
+            var lockTimer, boardTimer;
+
+            /**
+             * Render the HTML table with checker colours from json
+             */
+            var drawTable = function (result) {
+                $("#excelDataTable").empty();
+                $.each(result, function (rowkey, val) {
+                    var row$ = $('<tr/>');
+                    $.each(val, function (colkey, colval) {
+                        tdNode = $('<td/>').html(colval)
+                                .addClass('eachBlock')
+                                .attr({'row': rowkey, 'col': colkey})
+                                .css('background-color', '#' + colval);
+                        row$.append(tdNode);
+                    })
+                    $("#excelDataTable").append(row$);
+
+                });
+            };
+
+            /**
+             * Call lightboard API and get latest board that is in use
+             */
+            var recreateTable = function () {
+                $.getJSON("/lightboardAPI.php",
+                        function (result, status) {
+                            drawTable(result);
+                        }
+                )
+            }
+
+            var saveClick = function (data) {
+                $.post("/lightboardAPI.php",
+                        data,
+                        function (result, status) {
+                            drawTable(result);
+                            return true;
+                        }
+                )
+                return false;
+            }
+
+            /**
+             * Click handler for each TD
+             */
+            var cellClickHandler = function () {
+                var dummy = $("<dummy>").css('background', 'rgba(0,0,0,0)')
+                color = '0';
+                if ($(this).css('background-color') == dummy.css('background')) {
+                    color = $.cookie("mycolor");
+                }
+
+                var data = {'row': $(this).attr('row'),
+                    'col': $(this).attr('col'),
+                    'color': color
+                };
+
+                saveClick(data);
+            };
+
+
+            /**
+             * Get lock stautuss
+             */
+            var getLockStatus = function () {
+                $.getJSON("/lockingAPI.php",
+                        function (result, status) {
+                            if (result && result.locked_by != $.cookie("mycolor")) { //Ie some one is editing
+                                boardPollingHandler(); //get board changes
+                                turnDisabled();
+                                
+                            } else if (result && result.locked_by == $.cookie("mycolor")) {
+                                clearBoardPollingHandler(); //i am editing
+                                clearLockPollingHandler();
+                                turnOn(); //Change it to green
+                                
+                            } else {
+                                console.log("no one editing")
+                                clearBoardPollingHandler(); //i am editing
+                                turnOff(); //Change it to green
+                            }
+                        }
+                )
+            }
+
+            var setLock = function (data) {
+                return $.post("/lockingAPI.php",
+                        data,
+                        function (result) {
+                            console.log("result true");
+                            return true;
+                        }
+                )
+                console.log("result false");
+                return false;
+            }
+
+            var turnOff = function () {
+                //Dont allow user to Click TDs and this button is red
+                $('#excelDataTable').off('click', 'td');
+                $("#getToken").removeAttr('disabled');
+                $("#getToken").prop('isOn', 0).removeClass('buttonDisabled').removeClass('buttonOn').addClass('buttonOff');
+                $("#getToken").text('click here to get Access');
+            }
+
+            var turnOn = function () {
+                // Now user can ask for Token
+                $('#excelDataTable').on('click', 'td', cellClickHandler);
+                $("#getToken").prop('isOn', 1).removeClass('buttonDisabled').removeClass('buttonOff').addClass('buttonOn');
+                $("#getToken").removeAttr('disabled');
+                $("#getToken").text('click here to stop Editing');
+            }
+            
+            var turnDisabled = function () {
+                //Dont allow user to Click TDs and this button is red
+                $('#excelDataTable').off('click', 'td');
+                $("#getToken").prop('isOn', 0).removeClass('buttonOn').removeClass('buttonOff').addClass('buttonDisabled');
+                $("#getToken").prop('disabled', 'disabled');
+                $("#getToken").text('SOmeone else is Editing');
+            }
+
+            /**
+             * Handles click to get Token button
+             */
+            var buttonClickHandler = function () {
+                if (parseInt($(this).prop('isOn')) > 0) {
+                    console.log("before off");
+                    if(setLock({'user_name': ''})) {
+                        console.log("turned off");
+                        lockPollingHandler();
+                        turnOff();
+                    }
+
+                } else {
+                    console.log("before on");
+                    if(setLock({'user_name': $.cookie("mycolor")})) {
+                        console.log("turned on");
+                        turnOn();
+                    }
+                }
+            };
+
+            var clearLockPollingHandler = function () {
+                clearTimeout(lockTimer);
+                return;
+            }
+
+            var lockPollingHandler = function () {
+                lockTimer = setTimeout(function () {
+                    getLockStatus();
+                    lockPollingHandler();
+                }, 7000);
+
+            }
+
+            var clearBoardPollingHandler = function () {
+                clearTimeout(boardTimer);
+                return;
+            }
+
+            var boardPollingHandler = function () {
+                boardTimer = setTimeout(function () {
+                    recreateTable();
+                    boardPollingHandler();
+                }, 7000);
+
+            }
+
+
+            // MAIN EXEC ON LOAD
+            $(document).ready(function () {
+                getLockStatus();
+//                $.cookie("mycolor",  Math.floor(Math.random()*(255-99)+100)); //Testing overwrite
+                if (!$.cookie("mycolor")) {
+                    $.cookie("mycolor", Math.floor(Math.random() * (255 - 99) + 100));
+                }
+
+                $("#getToken").on('click', buttonClickHandler);
+                recreateTable();
+                lockPollingHandler();
+            });
+        </script>
+
+    </body>
+</html>
