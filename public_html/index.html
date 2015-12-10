@@ -21,21 +21,21 @@ and open the template in the editor.
             }
             .buttonOff {
                 background-color: green;
-            } 
+            }
             .buttonOn{
                 background-color: red;
-            } 
+            }
             .buttonDisabled{
                 background-color: grey;
-            } 
+            }
         </style>
 
     </head>
     <body>
         <div>Click on the button to get access to change cell scolor.</div>
 
-        <p> 
-            <button name="getToken" id="getToken" isOn="0" class="buttonOff">click here to get Access</button> 
+        <p>
+            <button name="getToken" id="getToken" isOn="0" class="buttonOff">click here to get Access</button>
         </p>
         <table id="excelDataTable" border="1">
         </table>
@@ -57,7 +57,7 @@ and open the template in the editor.
                         tdNode = $('<td/>').html(colval)
                                 .addClass('eachBlock')
                                 .attr({'row': rowkey, 'col': colkey})
-                                .css('background-color', '#' + colval);
+                                .css('background-color', colval);
                         row$.append(tdNode);
                     })
                     $("#excelDataTable").append(row$);
@@ -81,6 +81,7 @@ and open the template in the editor.
                         data,
                         function (result, status) {
                             drawTable(result);
+                            $("#getToken").click();
                             return true;
                         }
                 )
@@ -91,9 +92,9 @@ and open the template in the editor.
              * Click handler for each TD
              */
             var cellClickHandler = function () {
-                var dummy = $("<dummy>").css('background', 'rgba(0,0,0,0)')
+                var dummy = $("body").css('background-color');
                 color = '0';
-                if ($(this).css('background-color') == dummy.css('background')) {
+                if ($(this).css('background-color') == dummy) { //dummy.css('background')
                     color = $.cookie("mycolor");
                 }
 
@@ -103,6 +104,7 @@ and open the template in the editor.
                 };
 
                 saveClick(data);
+
             };
 
 
@@ -115,15 +117,15 @@ and open the template in the editor.
                             if (result && result.locked_by != $.cookie("mycolor")) { //Ie some one is editing
                                 boardPollingHandler(); //get board changes
                                 turnDisabled();
-                                
+
                             } else if (result && result.locked_by == $.cookie("mycolor")) {
                                 clearBoardPollingHandler(); //i am editing
                                 clearLockPollingHandler();
                                 turnOn(); //Change it to green
-                                
+
                             } else {
-                                console.log("no one editing")
-                                clearBoardPollingHandler(); //i am editing
+//                                console.log("no one editing")
+                                boardPollingHandler(); //get board changes
                                 turnOff(); //Change it to green
                             }
                         }
@@ -134,11 +136,11 @@ and open the template in the editor.
                 return $.post("/lockingAPI.php",
                         data,
                         function (result) {
-                            console.log("result true");
+//                            console.log("result true");
                             return true;
                         }
                 )
-                console.log("result false");
+//                console.log("result false");
                 return false;
             }
 
@@ -157,7 +159,7 @@ and open the template in the editor.
                 $("#getToken").removeAttr('disabled');
                 $("#getToken").text('click here to stop Editing');
             }
-            
+
             var turnDisabled = function () {
                 //Dont allow user to Click TDs and this button is red
                 $('#excelDataTable').off('click', 'td');
@@ -171,7 +173,7 @@ and open the template in the editor.
              */
             var buttonClickHandler = function () {
                 if (parseInt($(this).prop('isOn')) > 0) {
-                    console.log("before off");
+//                    console.log("before off");
                     if(setLock({'user_name': ''})) {
                         console.log("turned off");
                         lockPollingHandler();
@@ -179,7 +181,7 @@ and open the template in the editor.
                     }
 
                 } else {
-                    console.log("before on");
+//                    console.log("before on");
                     if(setLock({'user_name': $.cookie("mycolor")})) {
                         console.log("turned on");
                         turnOn();
@@ -217,11 +219,13 @@ and open the template in the editor.
             // MAIN EXEC ON LOAD
             $(document).ready(function () {
                 getLockStatus();
-//                $.cookie("mycolor",  Math.floor(Math.random()*(255-99)+100)); //Testing overwrite
+//                $.cookie("mycolor",  'yellow'); //Testing overwrite
+                colours = ['red', 'gray', 'gold','yellow', 'yellowgreen', 'aqua', 'black', 'blue'];
                 if (!$.cookie("mycolor")) {
-                    $.cookie("mycolor", Math.floor(Math.random() * (255 - 99) + 100));
+                    colourIndex = Math.floor(Math.random() * (colours.length - 1) + 1);
+                    $.cookie("mycolor",colours[colourIndex]);
                 }
-
+                console.log($.cookie("mycolor"));
                 $("#getToken").on('click', buttonClickHandler);
                 recreateTable();
                 lockPollingHandler();
